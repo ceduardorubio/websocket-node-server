@@ -32,7 +32,8 @@ interface SocketRouter {
         requestBody:{ [key: string]: any},
         response:(error: any, response: { [key: string]: any}) => void,
         sessionData:{ [key: string]: any},
-        clientGroups:string[]
+        clientGroups:string[],
+        emitter:WebSocket
     ) => void
 }
 
@@ -76,7 +77,8 @@ export class WebSocketNodeServer {
             requestBody:{ [key: string]: any},
             response:(error: any, response: { [key: string]: any}) => void,
             sessionData:{ [key: string]: any},
-            clientGroups:string[]
+            clientGroups:string[],
+            emitter:WebSocket
         ) => void) {
         this.routes[requestName] = fn;
         return this;
@@ -166,7 +168,7 @@ export class WebSocketNodeServer {
                             } else {
                                 if(Object.keys(request).length > 0){     // if there are routes defined
                                     if(request in this.routes){                   // if the route exists
-                                        this.routes[request](data,SendToClient,session.data,session.groups); // call the route
+                                        this.routes[request](data,SendToClient,session.data,session.groups,websocket); // call the route
                                     } else {
                                         SendToClient('invalid call request',{ done : false });
                                     }
@@ -242,6 +244,10 @@ export class WebSocketNodeServer {
             this.heartbeatInterval = time * 1.5;
         }
         return this;
+    }
+
+    getServer(){
+        return this.websocketServer;
     }
 
 }

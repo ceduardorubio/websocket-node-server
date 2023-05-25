@@ -106,7 +106,7 @@ wsServer.StartListening();
 
 ## 4. Set Request Handlers
 ```typescript
-wsServers.OnRequest('create/user',(requestBody,response,sessionData,clientGroups) => {
+wsServers.OnRequest('create/user',(requestBody,response,sessionData,clientGroups,emitter) => {
     let user = requestBody;
     let allowCreate = sessionData.isAdmin || clientGroups.includes('admin');
     if(allowCreate){
@@ -126,6 +126,7 @@ Set this listener as a function to handle the incoming requests from the clients
     - **data:** the data object to be send to the client.
 - **sessionData:** the session data object of the client that has sent the request.
 - **clientGroups:** the array of strings with the groups names of the client that has sent the request.
+- **emitter:** the emitter object to send messages to the client that has sent the request.
 
 
 ## 5. Send Broadcast Messages
@@ -140,6 +141,33 @@ Send a broadcast message to all the clients or to a specific group. It receives 
 - **eventName:** the name of the event to send.
 - **groupName:** the name of the group to send the message. If null, the message will be send to all the clients.
 - **data:** the data object to be send to the clients.
+
+### 5.2 Broadcast when a request is received
+```typescript
+wsServers.OnRequest('create/user',(requestBody,response,sessionData,clientGroups,emitter) => {
+    let user = requestBody;
+    let allowCreate = sessionData.isAdmin || clientGroups.includes('admin');
+    if(allowCreate){
+        // create user in database
+        response(null,{done:true});
+        // send a broadcast message to all the clients with the event name 'user/created' and the data object 
+        // {user} to be received by the clients
+        // except the client that has sent the request (emitter)
+        emitter.Broadcast('user/created',null,{user},emitter);
+    } else {
+        response('not allowed',null);
+    }
+});
+```
+
+### 6. Access to WebSocketServer
+```typescript
+    let ws = wsServers.getServer();
+    // do something with the server websocket, like get the clients, listeners, etc.
+    ws.clients.forEach((client) => {
+        // do something with the client
+    });
+```
 
 
 ## READ THE CODE ON
@@ -162,3 +190,6 @@ Carlos Velasquez - [ceduardorubio](https://github.com/ceduardorubio)
 
 ### 0.0.1
 - Initial release
+### 0.0.2
+- Added the possibility to send broadcast messages, inside a request handler, to all the clients except the client that has sent the request.
+- Added the possibility to access to the websocket server to get the clients, listeners, etc.
