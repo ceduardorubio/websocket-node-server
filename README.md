@@ -193,3 +193,6 @@ Carlos Velasquez - [ceduardorubio](https://github.com/ceduardorubio)
 ### 0.0.2
 - Added the possibility to send broadcast messages, inside a request handler, to all the clients except the client that has sent the request.
 - Added the possibility to access to the websocket server to get the clients, listeners, etc.
+
+### 0.0.3
+- Fix type module error
