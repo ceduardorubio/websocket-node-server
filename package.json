@@ -1,10 +1,9 @@
 {
   "name": "ws-node-server",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Transform your express / http application server into a websocket server to handle websocket connections,",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "type":"module",
   "repository": {
     "type": "git",
     "url": "https://github.com/ceduardorubio/websocket-node-server.git"
