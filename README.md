@@ -15,8 +15,7 @@ USE THIS LIBRARY WITH
 
 
 ## Website
-[https://ceduardorubio.github.io/websocketnodeserver/](web socket node server)
-- under construction
+[web socket node server](https://ceduardorubio.github.io/websocketnodeserver/) (under construction)
 
 ## Installation
 ```bash
