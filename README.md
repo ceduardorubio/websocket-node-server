@@ -14,6 +14,10 @@ USE THIS LIBRARY WITH
 - [web socket browser client](https://www.npmjs.com/package/ws-browser-client) to connect a browser application to the Web Socket Node Server.
 
 
+## Website
+[https://ceduardorubio.github.io/websocketnodeserver/](web socket node server)
+- under construction
+
 ## Installation
 ```bash
 npm install --save ws-node-server
@@ -196,3 +200,5 @@ Carlos Velasquez - [ceduardorubio](https://github.com/ceduardorubio)
 
 ### 0.0.3
 - Fix type module error
+### 0.0.5
+- Allow clients to send broadcast messages to all the clients or to a specific group.

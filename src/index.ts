@@ -177,7 +177,11 @@ export class WebSocketNodeServer {
                                 }
                             }
                         } else {
-                            SendToClient('invalid action',{ done : false });
+                            if(action == 'broadcast'){
+                                this.Broadcast(request,group,data,websocket);
+                            } else {
+                                SendToClient('invalid action',{ done : false });
+                            }
                         }
                     }
                 } else { // if the client is not authenticated
