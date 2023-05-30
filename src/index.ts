@@ -214,8 +214,8 @@ export class WebSocketNodeServer {
                                                         if("publicAlias" in data) session.publicAlias = data.publicAlias;
                                                         SendToClient(false,{currentAlias:session.publicAlias});
                                                     } else {
-                                                        if(request.startsWith('sendToClient-')){
-                                                            let uuid = request.replace('sendToClient-','');
+                                                        if(request == 'sendToClient'){
+                                                            let uuid = group;
                                                             let found = null;
                                                             this.websocketServer.clients.forEach(ws => {
                                                                 if(ws['xSession'] && ws['xSession'].available && ws['xSession'].publicAlias && ws['xSession'].uuid === uuid){
@@ -224,18 +224,18 @@ export class WebSocketNodeServer {
                                                             });
                 
                                                             let info: SocketPackageInfo = {  
-                                                                action   : 'channel',
+                                                                action   : 'broadcast',
                                                                 request  : 'msgFromClient',
-                                                                group    : session.uuid,
+                                                                group    : null,
                                                                 packageID: null
                                                             };
-                                                            let r : SocketPackageResponse = { info, error: false, response: data };
+                                                            let r : SocketPackageResponse = { info, error: false, response: {fromUUID: session.uuid,data} };
                                                             let msg = JSON.stringify(r);
                                                             if(found){
                                                                 found.send(msg);
-                                                                SendToClient(false,{send:true});
+                                                                SendToClient(false,{sent:true});
                                                             } else {
-                                                                SendToClient('client not found',{ send : false });
+                                                                SendToClient('client not found',{ sent : false });
                                                             }
                                                         } else {
                                                             SendToClient('invalid channel request',{ done : false });
