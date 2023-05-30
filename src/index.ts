@@ -3,13 +3,16 @@ import internal = require('stream');
 import { WebSocketServer,WebSocket,OPEN } from 'ws';
 
 interface SocketSession {
-    isAlive: boolean,
-    data   : { [key: string]: any},
-    groups : string[],
+    isAlive    : boolean,
+    data       : { [key: string]: any},
+    groups     : string[],
+    publicAlias: string | null,
+    uuid       : string | null,
+    available  : boolean | false
 }
 
 interface SocketPackageInfo {
-    action   : 'group' | 'call' | 'auth' | 'broadcast',
+    action   : 'group' | 'call' | 'auth' | 'broadcast' | 'channel'
     request  : string,
     group    : string,
     packageID: number
@@ -115,9 +118,12 @@ export class WebSocketNodeServer {
 
         this.websocketServer.on('connection',(httpRequest:IncomingMessage,websocket:WebSocket, socketInternal:internal.Duplex) => {
             const session:SocketSession = {
-                isAlive: true,  // heartbeat
-                data   : null,  // session data 
-                groups : [],    // groups
+                isAlive    : true,   // heartbeat
+                data       : null,   // session data 
+                groups     : [],     // groups
+                publicAlias: null,   // public name
+                uuid       : null,   // uuid
+                available  : false   // available
             }
             websocket    ['xSession'] = session;                                                      // add session to websocket
             const        closeSocketInternal = () => socketInternal.destroy();                        // close socket internal (at http level)
@@ -180,15 +186,70 @@ export class WebSocketNodeServer {
                             if(action == 'broadcast'){
                                 this.Broadcast(request,group,data,websocket);
                             } else {
-                                SendToClient('invalid action',{ done : false });
+                                if(action == 'channel'){
+                                    if(request == 'listClients'){
+                                        let clients = [];
+                                        this.websocketServer.clients.forEach(ws => {
+                                            if(ws['xSession'] && ws['xSession'].available && ws['xSession'].publicAlias ){
+                                                let c = {
+                                                    uuid:ws['xSession'].uuid,
+                                                    publicAlias:ws['xSession'].publicAlias
+                                                } 
+                                                clients.push(c);
+                                            }
+                                        });
+                                        SendToClient(false,{clients});                                       
+                                    } else {
+                                        if(request== 'updateState'){
+                                            if("state" in data) session.data = data.state;
+                                            SendToClient(false,{currentState:session.data});
+                                        } else {
+                                            if(request == 'updateAlias'){
+                                                if("alias" in data) session.publicAlias = data.alias;
+                                                SendToClient(false,{currentAlias:session.publicAlias});
+                                            } else {
+                                                if(request.startsWith('sendToClient-')){
+                                                    let uuid = request.replace('sendToClient-','');
+                                                    let found = null;
+                                                    this.websocketServer.clients.forEach(ws => {
+                                                        if(ws['xSession'] && ws['xSession'].available && ws['xSession'].publicAlias && ws['xSession'].uuid === uuid){
+                                                            found = ws;
+                                                        }
+                                                    });
+        
+                                                    let info: SocketPackageInfo = {  
+                                                        action   : 'channel',
+                                                        request  : 'msgFromClient',
+                                                        group    : session.uuid,
+                                                        packageID: null
+                                                    };
+                                                    let r : SocketPackageResponse = { info, error: false, response: data };
+                                                    let msg = JSON.stringify(r);
+                                                    if(found){
+                                                        found.send(msg);
+                                                        SendToClient(false,{send:true});
+                                                    } else {
+                                                        SendToClient('client not found',{ send : false });
+                                                    }
+                                                } else {
+                                                    SendToClient('invalid channel request',{ done : false });
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    SendToClient('invalid action',{ done : false });
+                                }
                             }
                         }
                     }
                 } else { // if the client is not authenticated
                     if((action === 'auth') && (request === 'login')){ // if the client is trying to authenticate
-                        const startSession = (sessionData,groups) => {
-                            session.data = sessionData || {};
-                            session.groups = groups || [];
+                        const startSession = (sessionData,groups,publicAlias: string | null = null) => {
+                            session.data        = sessionData || {};
+                            session.groups      = groups || [];
+                            session.publicAlias = publicAlias;
+                            session.uuid        = GenerateUUID();
                         }
                         this.onAuthReq(data,startSession,SendToClient); // call the authentication function
                     } else {
@@ -254,4 +315,11 @@ export class WebSocketNodeServer {
         return this.websocketServer;
     }
 
+}
+
+function GenerateUUID(){
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        let r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8); 
+        return v.toString(16);
+    });
 }

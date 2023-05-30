@@ -1,6 +1,6 @@
 {
   "name": "ws-node-server",
-  "version": "0.0.6",
+  "version": "0.1.0",
   "description": "Transform your express / http application server into a websocket server to handle websocket connections,",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

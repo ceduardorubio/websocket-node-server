@@ -35,7 +35,7 @@ const wsServer = new WebSocketNodeServer(server);
 ```
 ## 2. Listeners Setup
 ```typescript
-let wsOnAuthReq = (credential:any, setSession:(sessionData,groups) => void, response:(error: any, clientSideSessionObject: { [key: string]: any}) => void) => {
+let wsOnAuthReq = (credential:any, setSession:(sessionData,groups,publicAlias) => void, response:(error: any, clientSideSessionObject: { [key: string]: any}) => void) => {
     // validate credentials like username and password
     if(credential.user == "..." && credential.password == "..."){
         let currentToken = GenerateToken();
@@ -48,8 +48,12 @@ let wsOnAuthReq = (credential:any, setSession:(sessionData,groups) => void, resp
         }
         // set the groups
         let groups = ['admin'];
+        // set the public alias (optional) | null;
+        // if set this alias will be visible to other clients
+        // if not set, the client will not be visible to other clients
+        let publicAlias = 'noSensitiveName';
         // set the session
-        setSession(sessionData,groups);
+        setSession(sessionData,groups,publicAlias);
         // send the response
         response(null,sessionData);
     } else {
@@ -201,3 +205,6 @@ Carlos Velasquez - [ceduardorubio](https://github.com/ceduardorubio)
 - Fix type module error
 ### 0.0.5
 - Allow clients to send broadcast messages to all the clients or to a specific group.
+### 0.1.0
+- Client to client communication (send messages to a specific client)
+- Add public alias and available state (true | false) to the session data for client to client communication.
