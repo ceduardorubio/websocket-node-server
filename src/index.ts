@@ -190,7 +190,7 @@ export class WebSocketNodeServer {
                                     if(request == 'getAvailableClients'){
                                         let clients = [];
                                         this.websocketServer.clients.forEach(ws => {
-                                            if(ws['xSession'] && ws['xSession'].available && ws['xSession'].publicAlias ){
+                                            if((ws !== websocket)  && ws['xSession'] && ws['xSession'].available && ws['xSession'].publicAlias ){
                                                 let c = {
                                                     uuid:ws['xSession'].uuid,
                                                     publicAlias:ws['xSession'].publicAlias
