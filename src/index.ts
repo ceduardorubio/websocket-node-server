@@ -207,11 +207,11 @@ export class WebSocketNodeServer {
                                                 SendToClient(false,{currentAvailability:session.available});
                                             } else {
                                                 if(request== 'updatePublicAvailability'){
-                                                    if("state" in data) session.data = data.state;
-                                                    SendToClient(false,{currentState:session.data});
+                                                    if("isAvailable" in data) session.available = data.isAvailable;
+                                                    SendToClient(false,{currentAvailability:session.available});
                                                 } else {
                                                     if(request == 'updatePublicAlias'){
-                                                        if("alias" in data) session.publicAlias = data.alias;
+                                                        if("publicAlias" in data) session.publicAlias = data.publicAlias;
                                                         SendToClient(false,{currentAlias:session.publicAlias});
                                                     } else {
                                                         if(request.startsWith('sendToClient-')){
