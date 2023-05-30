@@ -187,7 +187,7 @@ export class WebSocketNodeServer {
                                 this.Broadcast(request,group,data,websocket);
                             } else {
                                 if(action == 'channel'){
-                                    if(request == 'listClients'){
+                                    if(request == 'getAvailableClients'){
                                         let clients = [];
                                         this.websocketServer.clients.forEach(ws => {
                                             if(ws['xSession'] && ws['xSession'].available && ws['xSession'].publicAlias ){
@@ -200,39 +200,47 @@ export class WebSocketNodeServer {
                                         });
                                         SendToClient(false,{clients});                                       
                                     } else {
-                                        if(request== 'updateState'){
-                                            if("state" in data) session.data = data.state;
-                                            SendToClient(false,{currentState:session.data});
+                                        if(request == 'getPublicAlias'){
+                                            SendToClient(false,{currentAlias:session.publicAlias});
                                         } else {
-                                            if(request == 'updateAlias'){
-                                                if("alias" in data) session.publicAlias = data.alias;
-                                                SendToClient(false,{currentAlias:session.publicAlias});
+                                            if(request == 'getPublicAvailability'){
+                                                SendToClient(false,{currentAvailability:session.available});
                                             } else {
-                                                if(request.startsWith('sendToClient-')){
-                                                    let uuid = request.replace('sendToClient-','');
-                                                    let found = null;
-                                                    this.websocketServer.clients.forEach(ws => {
-                                                        if(ws['xSession'] && ws['xSession'].available && ws['xSession'].publicAlias && ws['xSession'].uuid === uuid){
-                                                            found = ws;
-                                                        }
-                                                    });
-        
-                                                    let info: SocketPackageInfo = {  
-                                                        action   : 'channel',
-                                                        request  : 'msgFromClient',
-                                                        group    : session.uuid,
-                                                        packageID: null
-                                                    };
-                                                    let r : SocketPackageResponse = { info, error: false, response: data };
-                                                    let msg = JSON.stringify(r);
-                                                    if(found){
-                                                        found.send(msg);
-                                                        SendToClient(false,{send:true});
-                                                    } else {
-                                                        SendToClient('client not found',{ send : false });
-                                                    }
+                                                if(request== 'updatePublicAvailability'){
+                                                    if("state" in data) session.data = data.state;
+                                                    SendToClient(false,{currentState:session.data});
                                                 } else {
-                                                    SendToClient('invalid channel request',{ done : false });
+                                                    if(request == 'updatePublicAlias'){
+                                                        if("alias" in data) session.publicAlias = data.alias;
+                                                        SendToClient(false,{currentAlias:session.publicAlias});
+                                                    } else {
+                                                        if(request.startsWith('sendToClient-')){
+                                                            let uuid = request.replace('sendToClient-','');
+                                                            let found = null;
+                                                            this.websocketServer.clients.forEach(ws => {
+                                                                if(ws['xSession'] && ws['xSession'].available && ws['xSession'].publicAlias && ws['xSession'].uuid === uuid){
+                                                                    found = ws;
+                                                                }
+                                                            });
+                
+                                                            let info: SocketPackageInfo = {  
+                                                                action   : 'channel',
+                                                                request  : 'msgFromClient',
+                                                                group    : session.uuid,
+                                                                packageID: null
+                                                            };
+                                                            let r : SocketPackageResponse = { info, error: false, response: data };
+                                                            let msg = JSON.stringify(r);
+                                                            if(found){
+                                                                found.send(msg);
+                                                                SendToClient(false,{send:true});
+                                                            } else {
+                                                                SendToClient('client not found',{ send : false });
+                                                            }
+                                                        } else {
+                                                            SendToClient('invalid channel request',{ done : false });
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
