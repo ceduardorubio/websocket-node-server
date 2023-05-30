@@ -198,7 +198,7 @@ export class WebSocketNodeServer {
                                                 clients.push(c);
                                             }
                                         });
-                                        SendToClient(false,{clients});                                       
+                                        SendToClient(false,clients);                                       
                                     } else {
                                         if(request == 'getPublicAlias'){
                                             SendToClient(false,{currentAlias:session.publicAlias});
