@@ -247,3 +247,7 @@ Carlos Velasquez - [ceduardorubio](https://github.com/ceduardorubio)
         - sessionSender: the session data object of the client that has sent the private message.
         - sessionReceiver: the session data object of the client that has received the private message.
         - dataSent: the data object send by the client that has sent the private message.
+### 0.2.1
+    - Only Send private messages if you are available
+    - Only receive update client state broadcast messages if you are available
+    - Default available state is true

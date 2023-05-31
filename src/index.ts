@@ -138,7 +138,9 @@ export class WebSocketNodeServer {
                       
             const BroadcastClientUpdateState = (connected:boolean = true) => {
                 if(session.available && session.publicAlias){
-                    this.Broadcast('__updateClientsState',null,{uuid:session.uuid,publicAlias:session.publicAlias,isAvailable:session.available,publicInmutableData:session.publicInmutableData,connected},websocket);
+                    let onlyToAvailableClients = true;
+                    let updateData = {uuid:session.uuid,publicAlias:session.publicAlias,isAvailable:session.available,publicInmutableData:session.publicInmutableData,connected};
+                    this.Broadcast('__updateClientsState',null,updateData,websocket,onlyToAvailableClients);
                 }
             }
 
@@ -169,10 +171,13 @@ export class WebSocketNodeServer {
             const GetClients = () => {
                 let clients = [];
                 this.websocketServer.clients.forEach(ws => {
-                    if((ws !== websocket)  && ws['xSession'] && ws['xSession'].available && ws['xSession'].publicAlias ){
+                    if((ws !== websocket)  && ws['xSession'] && ws['xSession'].available ){
                         let c = {
-                            uuid:ws['xSession'].uuid,
-                            publicAlias:ws['xSession'].publicAlias
+                            uuid               : ws['xSession'].uuid,
+                            publicAlias        : ws['xSession'].publicAlias,
+                            publicInmutableData: ws['xSession'].publicInmutableData,
+                            isAvailable        : ws['xSession'].available,
+                            connected          : true
                         } 
                         clients.push(c);
                     }
@@ -255,23 +260,27 @@ export class WebSocketNodeServer {
                                                         BroadcastClientUpdateState();
                                                     } else {
                                                         if(request == 'sendToClient'){
-                                                            let uuid = group;
-                                                            let found = FindByUUID(uuid);
-                                                            let info: SocketPackageInfo = {  
-                                                                action   : 'broadcast',
-                                                                request  : 'msgFromClient',
-                                                                group    : null,
-                                                                packageID: null
-                                                            };
-                                                            let r : SocketPackageResponse = { info, error: false, response: {fromUUID: session.uuid,data} };
-                                                            let msg = JSON.stringify(r);
-                                                            if(found){
-                                                                found.send(msg);
-                                                                SendToClient(false,{sent:true});
-                                                                let receiverSession = found ['xSession'];
-                                                                if (this.onPrivateMessageSent) this.onPrivateMessageSent(session,receiverSession,data);
+                                                            if(session.available){
+                                                                let uuid = group;
+                                                                let found = FindByUUID(uuid);
+                                                                let info: SocketPackageInfo = {  
+                                                                    action   : 'broadcast',
+                                                                    request  : 'msgFromClient',
+                                                                    group    : null,
+                                                                    packageID: null
+                                                                };
+                                                                let r : SocketPackageResponse = { info, error: false, response: {fromUUID: session.uuid,data} };
+                                                                let msg = JSON.stringify(r);
+                                                                if(found){
+                                                                    found.send(msg);
+                                                                    SendToClient(false,{sent:true});
+                                                                    let receiverSession = found ['xSession'];
+                                                                    if (this.onPrivateMessageSent) this.onPrivateMessageSent(session,receiverSession,data);
+                                                                } else {
+                                                                    SendToClient('client not found',{ sent : false });
+                                                                }
                                                             } else {
-                                                                SendToClient('client not found',{ sent : false });
+                                                                SendToClient('you are not available.Update your availability',{ sent : false });
                                                             }
                                                         } else {
                                                             SendToClient('invalid channel request',{ done : false });
@@ -289,7 +298,7 @@ export class WebSocketNodeServer {
                     }
                 } else { // if the client is not authenticated
                     if((action === 'auth') && (request === 'login')){ // if the client is trying to authenticate
-                        const startSessionWith = (serverSideSessionData:{ [key: string]: any},clientGroups:string[] = null, publicAlias: string | null = null,available:boolean = false,publicInmutableData:any | null = null) => {
+                        const startSessionWith = (serverSideSessionData:{ [key: string]: any},clientGroups:string[] = null, publicAlias: string | null = null,available:boolean = true,publicInmutableData:any | null = null) => {
                             session.data                = serverSideSessionData || {};
                             session.groups              = clientGroups || [];
                             session.publicAlias         = publicAlias;
@@ -320,13 +329,15 @@ export class WebSocketNodeServer {
         return this;
     }
         
-    Broadcast (eventName:string,groupName:string | null,data:{ [key: string]: any},emitter:WebSocket = null) {
+    Broadcast (eventName:string,groupName:string | null,data:{ [key: string]: any},emitter:WebSocket = null,ifAvailable:boolean = false) {
         this.broadcastPackageID++;
         let info: SocketPackageInfo = {  action: 'broadcast', request: eventName, group:groupName, packageID:this.broadcastPackageID  };
         let r : SocketPackageResponse = { info, error: false, response: data };
         let msg = JSON.stringify(r);
         this.websocketServer.clients.forEach((ws:WebSocket) => {
-            if (ws.readyState === OPEN && ("xSession" in ws) && (ws !== emitter)) {
+            let isAvailable = ("xSession" in ws) && (ws['xSession']['available']);
+            let whenAvailable = (ifAvailable) ? isAvailable : true;
+            if (ws.readyState === OPEN && ("xSession" in ws) && (ws !== emitter) && whenAvailable) {
                 if(groupName){
                     if(ws['xSession']['groups'].includes(groupName))  ws.send( msg);
                 } else {
