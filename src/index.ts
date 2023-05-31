@@ -8,7 +8,8 @@ interface SocketSession {
     groups     : string[],
     publicAlias: string | null,
     uuid       : string | null,
-    available  : boolean | false
+    available  : boolean | false,
+    publicInmutableData: any | null
 }
 
 interface SocketPackageInfo {
@@ -34,16 +35,16 @@ interface SocketRouter {
     [key:string]:(
         requestBody:{ [key: string]: any},
         response:(error: any, response: { [key: string]: any}) => void,
-        sessionData:{ [key: string]: any},
+        serverSideSessionData:{ [key: string]: any},
         clientGroups:string[],
         emitter:WebSocket
     ) => void
 }
 
 export type AuthLoginFn              = (
-    data:any,
-    setSession:(sessionData:{ [key: string]: any},clientGroups:string[])=> void,
-    authResponse:(error: any, clientSideSessionObject: { [key: string]: any}) => void
+    credentialsObject:{ [key: string]: any},
+    startSessionWith: (serverSideSessionData:{ [key: string]: any},clientGroups?:string[], publicAlias?: string | null,available?:boolean,publicInmutableData?:any | null) => void,
+    authResponse    : (error: any, clientSideSessionObject: { [key: string]: any}) => void
     ) => void
 
 export class WebSocketNodeServer {
@@ -57,20 +58,21 @@ export class WebSocketNodeServer {
     private onCloseClientConnection:(session:any) => void = null;
     private httpRequestHandler: (request:IncomingMessage, allow:()=>void, deny:()=>void) => void = null;
     private onAuthReq:AuthLoginFn                         = (
-        data:any,
-        setSession:(sessionData:{ [key: string]: any},
-        clientGroups:string[])=> void,
+        credentialsObject:{ [key: string]: any},
+        startSessionWith:(serverSideSessionData:{ [key: string]: any},clientGroups?:string[], publicAlias?: string | null,available?:boolean,publicInmutableData?:any | null) => void ,
         authResponse:(error: any, clientSideSessionObject: { [key: string]: any}) => void) => {
             authResponse('No authentication function defined',null);
         };  
     
+    private onPrivateMessageSent:(sessionSender:SocketSession,sessionReceiver:SocketSession,dataSent:any) => void = null;
+
     constructor(server:Server){
         this.server = server;
     }
     
     OnAuthentication(onAuthentication:(
         credentialsObject:{ [key: string]: any},
-        setSession:(sessionData:{ [key: string]: any},clientGroups:string[])=> void,
+        startSessionWith: (serverSideSessionData:{ [key: string]: any},clientGroups?:string[], publicAlias?: string | null,available?:boolean,publicInmutableData?:any | null) => void ,
         authResponse:(error: any, clientSideSessionObject: { [key: string]: any}) => void
         ) => void){
         this.onAuthReq = onAuthentication;
@@ -79,7 +81,7 @@ export class WebSocketNodeServer {
     OnRequest (requestName:string,fn:(
             requestBody:{ [key: string]: any},
             response:(error: any, response: { [key: string]: any}) => void,
-            sessionData:{ [key: string]: any},
+            serverSideSessionData:{ [key: string]: any},
             clientGroups:string[],
             emitter:WebSocket
         ) => void) {
@@ -95,6 +97,10 @@ export class WebSocketNodeServer {
     OnHTTPUpgradeRequest (handler :(request:IncomingMessage, allows:()=>void, deny:()=>void) => void){
         this.httpRequestHandler = handler;
         return this;
+    }
+
+    public SetOnPrivateMessageSent(fn:((sessionSender:SocketSession,sessionReceiver:SocketSession,dataSent:any) => void ) | null) {
+        this.onPrivateMessageSent = fn;
     }
 
     public StartListening (){
@@ -123,16 +129,57 @@ export class WebSocketNodeServer {
                 groups     : [],     // groups
                 publicAlias: null,   // public name
                 uuid       : null,   // uuid
-                available  : false   // available
+                available  : false,  // available
+                publicInmutableData: null // public inmutable data
             }
             websocket    ['xSession'] = session;                                                      // add session to websocket
             const        closeSocketInternal = () => socketInternal.destroy();                        // close socket internal (at http level)
             setTimeout   (() => (session.data !== null) || closeSocketInternal() ,this.authTimeout);  // client has N seconds to authenticate or will be disconnected
-            websocket.on('error', this.onSocketError);                                                // error handler
-            websocket.on('pong', () => session.isAlive = true );                                      // heartbeat set isAlive 
-            websocket.on('close', () => { 
-                if(session.data && this.onCloseClientConnection) this.onCloseClientConnection(session.data);           // if the client was authenticated, call the onCloseClientConnection callback
+                      
+            const BroadcastClientUpdateState = (connected:boolean = true) => {
+                if(session.available && session.publicAlias){
+                    this.Broadcast('__updateClientsState',null,{uuid:session.uuid,publicAlias:session.publicAlias,isAvailable:session.available,publicInmutableData:session.publicInmutableData,connected},websocket);
+                }
+            }
+
+            const FindByUUID = (uuid:string) => {
+                let found = null;
+                this.websocketServer.clients.forEach(ws => {
+                    if(ws['xSession'] && ws['xSession'].available && ws['xSession'].publicAlias && ws['xSession'].uuid === uuid){
+                        found = ws;
+                    }
+                });
+                return found;
+            }
+           
+            websocket.on('pong', () => session.isAlive = true ); // heartbeat set isAlive 
+            
+            websocket.on('error', e => {
+                BroadcastClientUpdateState(false);
+                this.onSocketError(e);
+            });// error handler
+
+            websocket.on('close', () => {
+                if(session.data && this.onCloseClientConnection) {
+                    BroadcastClientUpdateState(false);
+                    this.onCloseClientConnection(session.data); // if the client was authenticated, call the onCloseClientConnection callback
+                }           
             });
+
+            const GetClients = () => {
+                let clients = [];
+                this.websocketServer.clients.forEach(ws => {
+                    if((ws !== websocket)  && ws['xSession'] && ws['xSession'].available && ws['xSession'].publicAlias ){
+                        let c = {
+                            uuid:ws['xSession'].uuid,
+                            publicAlias:ws['xSession'].publicAlias
+                        } 
+                        clients.push(c);
+                    }
+                });
+                return clients;
+            }
+
             websocket.on('message', (message : string) => {
                 let { 
                     info, // info about the package, so the package can be routed in server and the response can be tracked when it arrives to the client 
@@ -188,16 +235,7 @@ export class WebSocketNodeServer {
                             } else {
                                 if(action == 'channel'){
                                     if(request == 'getAvailableClients'){
-                                        let clients = [];
-                                        this.websocketServer.clients.forEach(ws => {
-                                            if((ws !== websocket)  && ws['xSession'] && ws['xSession'].available && ws['xSession'].publicAlias ){
-                                                let c = {
-                                                    uuid:ws['xSession'].uuid,
-                                                    publicAlias:ws['xSession'].publicAlias
-                                                } 
-                                                clients.push(c);
-                                            }
-                                        });
+                                        let clients = GetClients();
                                         SendToClient(false,clients);                                       
                                     } else {
                                         if(request == 'getPublicAlias'){
@@ -209,20 +247,16 @@ export class WebSocketNodeServer {
                                                 if(request== 'updatePublicAvailability'){
                                                     if("isAvailable" in data) session.available = data.isAvailable;
                                                     SendToClient(false,{currentAvailability:session.available});
+                                                    BroadcastClientUpdateState()
                                                 } else {
                                                     if(request == 'updatePublicAlias'){
                                                         if("publicAlias" in data) session.publicAlias = data.publicAlias;
                                                         SendToClient(false,{currentAlias:session.publicAlias});
+                                                        BroadcastClientUpdateState();
                                                     } else {
                                                         if(request == 'sendToClient'){
                                                             let uuid = group;
-                                                            let found = null;
-                                                            this.websocketServer.clients.forEach(ws => {
-                                                                if(ws['xSession'] && ws['xSession'].available && ws['xSession'].publicAlias && ws['xSession'].uuid === uuid){
-                                                                    found = ws;
-                                                                }
-                                                            });
-                
+                                                            let found = FindByUUID(uuid);
                                                             let info: SocketPackageInfo = {  
                                                                 action   : 'broadcast',
                                                                 request  : 'msgFromClient',
@@ -234,6 +268,8 @@ export class WebSocketNodeServer {
                                                             if(found){
                                                                 found.send(msg);
                                                                 SendToClient(false,{sent:true});
+                                                                let receiverSession = found ['xSession'];
+                                                                if (this.onPrivateMessageSent) this.onPrivateMessageSent(session,receiverSession,data);
                                                             } else {
                                                                 SendToClient('client not found',{ sent : false });
                                                             }
@@ -253,13 +289,16 @@ export class WebSocketNodeServer {
                     }
                 } else { // if the client is not authenticated
                     if((action === 'auth') && (request === 'login')){ // if the client is trying to authenticate
-                        const startSession = (sessionData,groups,publicAlias: string | null = null) => {
-                            session.data        = sessionData || {};
-                            session.groups      = groups || [];
-                            session.publicAlias = publicAlias;
-                            session.uuid        = GenerateUUID();
+                        const startSessionWith = (serverSideSessionData:{ [key: string]: any},clientGroups:string[] = null, publicAlias: string | null = null,available:boolean = false,publicInmutableData:any | null = null) => {
+                            session.data                = serverSideSessionData || {};
+                            session.groups              = clientGroups || [];
+                            session.publicAlias         = publicAlias;
+                            session.uuid                = GenerateUUID();
+                            session.available           = available;
+                            session.publicInmutableData = publicInmutableData;
+                            BroadcastClientUpdateState();
                         }
-                        this.onAuthReq(data,startSession,SendToClient); // call the authentication function
+                        this.onAuthReq(data,startSessionWith,SendToClient); // call the authentication function
                     } else {
                         // if the client is not authenticated and is not trying to authenticate, close the socket
                         closeSocketInternal();                        
