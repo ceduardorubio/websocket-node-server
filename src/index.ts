@@ -157,14 +157,13 @@ export class WebSocketNodeServer {
             websocket.on('pong', () => session.isAlive = true ); // heartbeat set isAlive 
             
             websocket.on('error', e => {
-                BroadcastClientUpdateState(false);
                 this.onSocketError(e);
             });// error handler
 
             websocket.on('close', () => {
-                if(session.data && this.onCloseClientConnection) {
+                if(session.data ) {// if the client was authenticated, call the onCloseClientConnection callback
                     BroadcastClientUpdateState(false);
-                    this.onCloseClientConnection(session.data); // if the client was authenticated, call the onCloseClientConnection callback
+                    if(this.onCloseClientConnection)this.onCloseClientConnection(session.data); 
                 }           
             });
 

@@ -251,3 +251,5 @@ Carlos Velasquez - [ceduardorubio](https://github.com/ceduardorubio)
     - Only Send private messages if you are available
     - Only receive update client state broadcast messages if you are available
     - Default available state is true
+### 0.2.3
+    - Fix broadcast messages when a client disconnects
