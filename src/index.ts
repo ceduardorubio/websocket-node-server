@@ -137,7 +137,7 @@ export class WebSocketNodeServer {
             setTimeout   (() => (session.data !== null) || closeSocketInternal() ,this.authTimeout);  // client has N seconds to authenticate or will be disconnected
                       
             const BroadcastClientUpdateState = (connected:boolean = true) => {
-                if(session.available && session.publicAlias){
+                if(!connected ||(session.available)){
                     let onlyToAvailableClients = true;
                     let updateData = {uuid:session.uuid,publicAlias:session.publicAlias,isAvailable:session.available,publicInmutableData:session.publicInmutableData,connected};
                     this.Broadcast('__updateClientsState',null,updateData,websocket,onlyToAvailableClients);
